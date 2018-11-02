@@ -11,7 +11,8 @@ Ridge / LogisticRegression
 RandomForestRegressor / RandomForestClassifier    
 RidgeCV / LogisticRegressionCV    
 BayesianRidge / GaussianNB    
-h2o (exclude_algos = ["GBM", "DeepLearning", "DRF"])    
+h2o    
+arima   
 	
 ### Параллелизм    
 Ветвление графа пайплайна (кастомно)    

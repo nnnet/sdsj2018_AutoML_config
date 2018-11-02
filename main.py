@@ -10,41 +10,41 @@ from sklearn.externals.joblib import cpu_count
 def main():
 
     parser = argparse.ArgumentParser()
-    # parser.add_argument('--train-csv', type=argparse.FileType('r')
-    #     , default="../sdsj2018_automl_check_datasets/check_1_r/train.csv")
-    #     # , required=True)
-    # parser.add_argument('--model-dir')
+#     # parser.add_argument('--train-csv', type=argparse.FileType('r')
+#     #     , default="../sdsj2018_automl_check_datasets/check_1_r/train.csv")
+#     #     # , required=True)
+#     # parser.add_argument('--model-dir')
 
-    parser.add_argument('--train-csv'
-        , default="../../sdsj2018_automl_check_datasets/check_8_c/train.csv"
-        )
-    parser.add_argument('--test-csv'
-        , default='../../sdsj2018_automl_check_datasets/check_8_c/test.csv'
-                        )
-    parser.add_argument('--prediction-csv'
-        , default='../../sdsj2018_automl_check_datasets/check_8_c/prediction.csv'
-        )
-# # python main.py --mode regression --train-csv '../sdsj2018_automl_check_datasets/check_1_r/train.csv' --model-dir '../model/'
-# # python main.py --test-csv '../sdsj2018_automl_check_datasets/check_1_r/test.csv' --prediction-csv '../sdsj2018_automl_check_datasets/check_1_r/prediction.csv' --model-dir '../model/'
-    parser.add_argument('--model-dir'
-        , default="../../model/")
-        # , required=True)
-    parser.add_argument('--mode', choices=['classification', 'regression']
-        , default="classification")
-        # , required=True)
+#     parser.add_argument('--train-csv'
+#         , default="../../sdsj2018_automl_check_datasets/check_8_c/train.csv"
+#         )
+#     parser.add_argument('--test-csv'
+#         , default='../../sdsj2018_automl_check_datasets/check_8_c/test.csv'
+#                         )
+#     parser.add_argument('--prediction-csv'
+#         , default='../../sdsj2018_automl_check_datasets/check_8_c/prediction.csv'
+#         )
+# # # python main.py --mode regression --train-csv '../sdsj2018_automl_check_datasets/check_1_r/train.csv' --model-dir '../model/'
+# # # python main.py --test-csv '../sdsj2018_automl_check_datasets/check_1_r/test.csv' --prediction-csv '../sdsj2018_automl_check_datasets/check_1_r/prediction.csv' --model-dir '../model/'
+#     parser.add_argument('--model-dir'
+#         , default="../../model/")
+#         # , required=True)
+#     parser.add_argument('--mode', choices=['classification', 'regression']
+#         , default="classification")
+#         # , required=True)
         
-    # parser.add_argument('--mode', choices=['classification', 'regression'])
-    # parser.add_argument('--model-dir')
-    # parser.add_argument('--train-csv')
-    # parser.add_argument('--test-csv')
-    # parser.add_argument('--prediction-csv')
+    parser.add_argument('--mode', choices=['classification', 'regression'])
+    parser.add_argument('--model-dir')
+    parser.add_argument('--train-csv')
+    parser.add_argument('--test-csv')
+    parser.add_argument('--prediction-csv')
 
     args = parser.parse_args()
 
     if not args.train_csv is None:
         params_autoML = \
-                { 'memory': {'max_size_mb': 2*1024, # * 1024 * 1024,
-                             'max_size_train_samples': 100000
+                { 'memory': {'max_size_mb': 11*1024, # * 1024 * 1024,
+                             'max_size_train_samples': 300000
                             },
                   'field_target_name': 'target',
         

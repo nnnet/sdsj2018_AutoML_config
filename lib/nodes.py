@@ -10,23 +10,20 @@ from lib.features import select_features
 from lib.util import timeit, log, Config
 
 from copy import deepcopy
-# from scipy.optimize import leastsq
 # import gc, psutil
-# import time
 from typing import Optional
-# predict, train, 
-# validate, 
 from lib.model import \
-        train_lightgbm, predict_lightgbm, \
-        train_h2o, predict_h2o
+        train_lightgbm, predict_lightgbm
 from lib.model_other import \
         train_vw, predict_vw, \
+        train_h2o, predict_h2o, \
         train_lm, predict_lm, \
         train_rand_forest, predict_rand_forest, \
         train_linear_cv, predict_linear_cv, \
         train_bayesian, predict_bayesian, \
         train_arima, predict_arima
-# from lib.read import read_df
+import time
+
 
 @timeit
 def pipeline(df: pd.DataFrame, config: Config
@@ -36,15 +33,20 @@ def pipeline(df: pd.DataFrame, config: Config
     if config.is_train():
         config['stages'] = {}
         
-    for stage in config['graph']:
+    for ids, stage in enumerate(config['graph']):
         if len(stage)==0 or stage[0] is None or stage[0]=='':
             config["stage"] = '{0}/n{1}'.format(config["stage"],
                                'Error value stage "{0}" in pipeline'.format(stage))
             raise ValueError(config["stage"])
             
         config["stage"] = stage[0]
+        config["stage_nb"] = ids
+        
         if config.is_train():
             config['stages'][config["stage"]] = {}
+        
+        config['stages'][config["stage"]]['time'] = 0
+        start_time = time.time()
         
         if stage[0] == 'Start':
             continue
@@ -72,6 +74,16 @@ def pipeline(df: pd.DataFrame, config: Config
             node.function(df, config, **config['params']['pipeline'][stage[0]]['args'])
         else:
             node(df, config)
+        
+        stage_time_inc(config, start_time, stage[0])
+
+
+def stage_time_inc(config, start_time, stage_name):
+    if 'stages_time' in config:
+        if stage_name in config['stages_time']:
+            config['stages_time'][stage_name] += (time.time() - start_time)
+        else:
+            config['stages_time'][stage_name] = time.time() - start_time
 
 
 @timeit
@@ -153,8 +165,7 @@ def model(df: pd.DataFrame, config: Config, models: list): #  -> (Optional[pd.Da
 
 
 @timeit
-def split_X_y(df: pd.DataFrame, config: Config) -> (Optional[pd.DataFrame], Optional[pd.Series]):
-    # if config.is_train():
+def split_X_y(df: pd.DataFrame, config: Config) -> (pd.DataFrame, Optional[pd.Series]):
     if config['params']['field_target_name'] in df.columns:
         return df.drop(config['params']['field_target_name'], axis=1), df[config['params']['field_target_name']]
     else:
@@ -220,14 +231,10 @@ def fillna_columns(df: pd.DataFrame, columns_metric: pd.Series):
 
     return df
 
-# %%
 @timeit
 def fillna(df: pd.DataFrame, config: Config, args: dict={}):
 
-    # if 'fillna' in config['params']['pipeline'][config["stage"]]:
     if len(args)!=0:
-        # config['stages'][config["stage"]]['args'] = deepcopy(args)
-        # config['stages'][config["stage"]]['fillna_values'] = {}
 
         for k, v in args.items():
 
@@ -280,7 +287,7 @@ def drop_constant_columns(df: pd.DataFrame, config: Config):
     if "constant_columns" not in config:
         config["constant_columns"] = get_constant_columns(df)
         
-        log("Constant columns: " + ", ".join(config["constant_columns"]))
+        log("Constant columns: " + ", ".join(config["constant_columns"]), config.verbose)
 
     if len(config["constant_columns"]) > 0:
         df.drop(config["constant_columns"], axis=1, inplace=True)
@@ -300,7 +307,7 @@ def transform_datetime(df: pd.DataFrame, config: Config):
                 df[part_col] = getattr(df[c].dt, part).astype(np.uint16 if part == "year" else np.uint8).values
 
                 if not (df[part_col] != df[part_col].iloc[0]).any():
-                    log(part_col + " is constant")
+                    log(part_col + " is constant", config.verbose)
                     df.drop(part_col, axis=1, inplace=True)
                 else:
                     config["date_columns"][c].append(part)
@@ -329,7 +336,7 @@ def transform_categorical(df: pd.DataFrame, config: Config):
             averages["target"] = prior * (1 - smooth) + averages["mean"] * smooth
             config["categorical_columns"][c] = averages["target"].to_dict()
 
-        log(list(config["categorical_columns"].keys()))
+        log(list(config["categorical_columns"].keys()), config.verbose)
 
     for c, values in config["categorical_columns"].items():
         df.loc[:, c] = df[c].apply(lambda x: values[x] if x in values else config["categorical_prior"])
@@ -355,59 +362,62 @@ def scale(df: pd.DataFrame, config: Config):
             config['stages'][config["stage"]]['model'].transform( \
                        df[config['stages'][config["stage"]]['scale_columns']].astype(np.float32) ).astype(np.float32)
 
-        columns_float64 = df.select_dtypes(include=['float64']).columns
-        if len(columns_float64)!=0:
-            df[columns_float64] = df[columns_float64].astype(np.float32)
 
 @timeit
 def to_int8(df: pd.DataFrame, config: Config):
-    # if "int8_columns" not in config:
-    #     config["int8_columns"] = []
-    #     vals = [-1, 0, 1]
-
-    #     for c in [c for c in df if c.startswith("number_")]:
-    #         if (~df[c].isin(vals)).any():
-    #             continue
-    #         config["int8_columns"].append(c)
-
-    #     log(config["int8_columns"])
-
-    # if len(config["int8_columns"]) > 0:
-    #     df.loc[:, config["int8_columns"]] = df.loc[:, config["int8_columns"]].astype(np.int8)
-
-    # if "int8_columns" not in config:
-    config['stages'][config["stage"]] = []
+    config['stages'][config["stage"]]['lst_columns'] = []
     vals = [-1, 0, 1]
 
     for c in [c for c in df if c.startswith("number_")]:
         if (~df[c].isin(vals)).any():
             continue
-        config['stages'][config["stage"]].append(c)
+        config['stages'][config["stage"]]['lst_columns'].append(c)
 
-    log(config['stages'][config["stage"]])
+    log(config['stages'][config["stage"]]['lst_columns'], config.verbose)
 
-    if len(config['stages'][config["stage"]]) > 0:
-        df.loc[:, config['stages'][config["stage"]]] = df.loc[:, config['stages'][config["stage"]]].astype(np.int8)
+    if len(config['stages'][config["stage"]]['lst_columns']) > 0:
+        df.loc[:, config['stages'][config["stage"]]['lst_columns']] = \
+            df.loc[:, config['stages'][config["stage"]]['lst_columns']].astype(np.int8)
 
-        
+
+def get_sample_rows(df: pd.DataFrame, config: Config):
+    df_size_mb = df.memory_usage(deep=True).sum() / 1024 / 1024
+    mem_per_row = df_size_mb / len(df)
+    sample_rows = int(config['params']['memory']['max_size_mb'] / mem_per_row)
+    
+    return df_size_mb, sample_rows
 
 
 @timeit
 def subsample(df: pd.DataFrame, config: Config):
     if config.is_train():
-        df_size_mb = df.memory_usage(deep=True).sum() / 1024 / 1024
-        if df_size_mb > config['params']['memory']['max_size_mb']:
-            mem_per_row = df_size_mb / len(df)
-            sample_rows = int(config['params']['memory']['max_size_mb'] / mem_per_row)
+        # df_size_mb = df.memory_usage(deep=True).sum() / 1024 / 1024
+        df_size_mb, sample_rows = get_sample_rows(df, config)
 
-            log("Size limit exceeded: {:0.2f} Mb. Dataset rows: {}. Subsample to {} rows.".format(df_size_mb, len(df), sample_rows))
+        if df_size_mb > config['params']['memory']['max_size_mb']:
+            # mem_per_row = df_size_mb / len(df)
+            # sample_rows = int(config['params']['memory']['max_size_mb'] / mem_per_row)
+
+            log("Size limit exceeded: {:0.2f} Mb. Dataset rows: {}. Subsample to {} rows." \
+                    .format(df_size_mb, len(df), sample_rows), config.verbose)
             _, df_drop = train_test_split(df, train_size=sample_rows, random_state=1)
             df.drop(df_drop.index, inplace=True)
 
             config["nrows"] = sample_rows
+        elif config["nrows_stage_nb"]==0:
+            config["nrows"] = max(sample_rows, len(df))
         else:
-            config["nrows"] = len(df)
+            config["nrows"] = min(sample_rows, config["nrows"])
 
+        config["nrows_stage_nb"] = config["stage_nb"]
+
+@timeit
+def rename_id_columns(df: pd.DataFrame, config: Config):
+    if "id_columns" not in config:
+        config["id_columns"] = dict([(c, 'string_'+c) for c in df if c.startswith("id_")])
+        log("Id columns: " + ", ".join(config["id_columns"]), config.verbose)
+    if len(config["id_columns"]) > 0:
+        df.rename(columns=config["id_columns"], inplace=True)
 
 @timeit
 def non_negative_target_detect(df: pd.DataFrame, config: Config):
@@ -439,7 +449,7 @@ def feature_selection(df: pd.DataFrame, config: Config):
             else:
                 break
 
-        log("Selected columns: {}".format(selected_columns))
+        log("Selected columns: {}".format(selected_columns), config.verbose)
 
         drop_number_columns = [c for c in df if (c.startswith("number_") or c.startswith("id_")) and c not in selected_columns]
         if len(drop_number_columns) > 0:
@@ -461,11 +471,11 @@ def feature_selection(df: pd.DataFrame, config: Config):
             config["drop_datetime_columns"] = drop_datetime_columns
 
     if "drop_number_columns" in config:
-        log("Drop number columns: {}".format(config["drop_number_columns"]))
+        log("Drop number columns: {}".format(config["drop_number_columns"]), config.verbose)
         df.drop(config["drop_number_columns"], axis=1, inplace=True)
 
     if "drop_datetime_columns" in config:
-        log("Drop datetime columns: {}".format(config["drop_datetime_columns"]))
+        log("Drop datetime columns: {}".format(config["drop_datetime_columns"]), config.verbose)
         df.drop(config["drop_datetime_columns"], axis=1, inplace=True)
 
 
@@ -502,26 +512,12 @@ def leak_detect(df: pd.DataFrame, config: Config) -> bool:
     return False
 
 
-    time_series_detect(df, config)
-    working_days_zero_detect(df, config)
-
-@timeit
-def time_series_detect(df: pd.DataFrame, config: Config) -> bool:
-    if config.is_train() & ("datetime_0" in df):
-        if (df["datetime_0"].nunique()==df.shape[0]):
-            config["time_series_min"] = df["datetime_0"].min()
-            log("Time series detect")
-        
-    if "time_series_min" in config:
-        df["time_series_lag"] = (df["datetime_0"] - config["time_series_min"]).dt.days
-        df["is_working_datetime_0"] = df["datetime_0"].map(config["working_days_map"])
-
 @timeit
 def working_days_zero_detect(df: pd.DataFrame, config: Config) -> bool:
     if config.is_train() & ("is_working_datetime_0" in df):
         if (df.loc[df["is_working_datetime_0"]==0,"target"]==0).all():
             config["working_days_zero"]=True
-            log("Working days zero detect")
+            log("Working days zero detect", config.verbose)
 
         
 
@@ -593,8 +589,9 @@ _node_map = { k : make_node(function=v, name=k) for k, v in [
                 ('columns_float64_to_32', columns_float64_to_32),
                 ('split_X_y', split_X_y),
                 ('model', model),
-                ('time_series_detect', time_series_detect),
-                ('working_days_zero_detect', working_days_zero_detect),
+                # ('time_series_detect', time_series_detect),
+                # ('working_days_zero_detect', working_days_zero_detect),
+                ('rename_id_columns', rename_id_columns),
                 # ('', ),
                 # ('', ),
                 ] 

@@ -1,7 +1,7 @@
 import pandas as pd
 import lightgbm as lgb
 from boruta import BorutaPy
-from typing import List, Optional
+from typing import List
 
 
 class LGBMFeatureEstimator():

@@ -10,6 +10,7 @@ def read_df(csv_path: str, config: Config) -> pd.DataFrame:
 
     df = pandas_read_csv(csv_path, config)
     if config.is_train():
+        config["nrows_stage_nb"] = 0
         config["nrows"] = len(df)
 
     return df
@@ -28,14 +29,14 @@ def pandas_read_csv(csv_path: str, config: Config) -> pd.DataFrame:
 @timeit
 def preview_df(train_csv: str, config: Config, nrows: int=3000):
     num_rows = sum(1 for line in open(train_csv)) - 1
-    log("Rows in train: {}".format(num_rows))
+    log("Rows in train: {}".format(num_rows), config.verbose)
 
     df = pd.read_csv(train_csv, encoding="utf-8", low_memory=False, nrows=nrows)
     mem_per_row = df.memory_usage(deep=True).sum() / nrows
-    log("Memory per row: {:0.2f} Kb".format(mem_per_row / 1024))
+    log("Memory per row: {:0.2f} Kb".format(mem_per_row / 1024), config.verbose)
 
     df_size = num_rows * mem_per_row
-    log("Approximate dataset size: {:0.2f} Mb".format(df_size / 1024 / 1024))
+    log("Approximate dataset size: {:0.2f} Mb".format(df_size / 1024 / 1024), config.verbose)
 
     config["parse_dates"] = []
     config["dtype"] = {
@@ -64,9 +65,9 @@ def preview_df(train_csv: str, config: Config, nrows: int=3000):
         elif c.startswith("id_"):
             counters["id"] += 1
 
-    log("Number columns: {}".format(counters["number"]))
-    log("String columns: {}".format(counters["string"]))
-    log("Datetime columns: {}".format(counters["datetime"]))
+    log("Number columns: {}".format(counters["number"]), config.verbose)
+    log("String columns: {}".format(counters["string"]), config.verbose)
+    log("Datetime columns: {}".format(counters["datetime"]), config.verbose)
 
     config["counters"] = counters
 

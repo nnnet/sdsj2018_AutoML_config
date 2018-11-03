@@ -1,18 +1,27 @@
 import subprocess
 import pandas as pd
 import numpy as np
-import pyramid as pm
 import h2o
 from h2o.automl import H2OAutoML
-# from vowpalwabbit.sklearn_vw import tovw
 from sklearn.linear_model import LogisticRegression, Ridge, BayesianRidge \
     , RidgeCV, LogisticRegressionCV
 from sklearn.naive_bayes import GaussianNB
 from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
 from lib.util import timeit, Config
 from typing import List
+try:
+    import pyramid as pm
+except:
+    print('\n', '='*5, 'Warning', '='*5)
+    print('\n  Install pyramid (pip install piramid) the pyramid to use the arima')
+    print('\n', '='*19)
+try:
+    from vowpalwabbit.sklearn_vw import tovw
+except:
+    print('\n', '='*5, 'Warning', '='*5)
+    print('\n  Install the vowpalwabbit to use it')
+    print('\n', '='*19)
 
-# import time
 
 @timeit
 def train_vw(X: pd.DataFrame, y: pd.Series, config: Config):
@@ -59,14 +68,14 @@ def predict_vw(X: pd.DataFrame, config: Config) -> List:
     return [np.float64(line) for line in open(preds_file, "r")]
 
 
-# @timeit
-# def save_to_vw(filepath: str, X: pd.DataFrame, y: pd.Series=None, chunk_size=1000):
-#     with open(filepath, "w+") as f:
-#         for pos in range(0, len(X), chunk_size):
-#             chunk_X = X.iloc[pos:pos + chunk_size, :]
-#             chunk_y = y.iloc[pos:pos + chunk_size] if y is not None else None
-#             for row in tovw(chunk_X, chunk_y):
-#                 f.write(row + "\n")
+@timeit
+def save_to_vw(filepath: str, X: pd.DataFrame, y: pd.Series=None, chunk_size=1000):
+    with open(filepath, "w+") as f:
+        for pos in range(0, len(X), chunk_size):
+            chunk_X = X.iloc[pos:pos + chunk_size, :]
+            chunk_y = y.iloc[pos:pos + chunk_size] if y is not None else None
+            for row in tovw(chunk_X, chunk_y):
+                f.write(row + "\n")
 
 
 @timeit
@@ -166,8 +175,6 @@ def train_h2o(X: pd.DataFrame, y: pd.Series, config: Config):
     if config["mode"] == "classification":
         train[train_y] = train[train_y].asfactor()
 
-    # elapsed = time.time() - config['start_time']
-    # aml = H2OAutoML(max_runtime_secs=int((TIME_LIMIT-elapsed)*0.9)
     aml = H2OAutoML(max_runtime_secs=int(config.time_left()*0.9)
     
                     , max_models=20
@@ -178,7 +185,7 @@ def train_h2o(X: pd.DataFrame, y: pd.Series, config: Config):
     aml.train(x=train_x, y=train_y, training_frame=train)
 
     config['params']['pipeline'][config["stage"]]["model"] = h2o.save_model(model=aml.leader, path=config.model_dir + "/h2o.model", force=True)
-    print(aml.leaderboard)
+    if config.verbose: print(aml.leaderboard)
 
     X.drop("target", axis=1, inplace=True)
 

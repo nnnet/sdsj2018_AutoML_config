@@ -1,37 +1,27 @@
 import argparse
-from lib.util import timeit, get_mode_from_file_name
 from lib.automl import AutoML
-# import os
-import numpy as np
-
-from sklearn.externals.joblib import cpu_count
 
 
 def main():
 
-    parser = argparse.ArgumentParser()
-#     # parser.add_argument('--train-csv', type=argparse.FileType('r')
-#     #     , default="../sdsj2018_automl_check_datasets/check_1_r/train.csv")
-#     #     # , required=True)
-#     # parser.add_argument('--model-dir')
+    # python main.py --mode regression --train-csv '../sdsj2018_automl_check_datasets/check_1_r/train.csv' --model-dir '../model/'
+    # python main.py --test-csv '../sdsj2018_automl_check_datasets/check_1_r/test.csv' --prediction-csv '../sdsj2018_automl_check_datasets/check_1_r/prediction.csv' --model-dir '../model/'
 
-#     parser.add_argument('--train-csv'
-#         , default="../../sdsj2018_automl_check_datasets/check_8_c/train.csv"
-#         )
-#     parser.add_argument('--test-csv'
-#         , default='../../sdsj2018_automl_check_datasets/check_8_c/test.csv'
-#                         )
-#     parser.add_argument('--prediction-csv'
-#         , default='../../sdsj2018_automl_check_datasets/check_8_c/prediction.csv'
-#         )
-# # # python main.py --mode regression --train-csv '../sdsj2018_automl_check_datasets/check_1_r/train.csv' --model-dir '../model/'
-# # # python main.py --test-csv '../sdsj2018_automl_check_datasets/check_1_r/test.csv' --prediction-csv '../sdsj2018_automl_check_datasets/check_1_r/prediction.csv' --model-dir '../model/'
-#     parser.add_argument('--model-dir'
-#         , default="../../model/")
-#         # , required=True)
-#     parser.add_argument('--mode', choices=['classification', 'regression']
-#         , default="classification")
-#         # , required=True)
+    parser = argparse.ArgumentParser()
+
+    # parser.add_argument('--train-csv'
+    #     , default="../../sdsj2018_automl_check_datasets/check_3_r/train.csv"
+    #     )
+    # parser.add_argument('--test-csv'
+    #     , default='../../sdsj2018_automl_check_datasets/check_3_r/test.csv'
+    #                     )
+    # parser.add_argument('--prediction-csv'
+    #     , default='../../sdsj2018_automl_check_datasets/check_3_r/prediction.csv'
+    #     )
+    # parser.add_argument('--mode', choices=['classification', 'regression']
+    #     , default="classification"
+    #     )
+    # parser.add_argument('--model-dir', default="../../model/")
         
     parser.add_argument('--mode', choices=['classification', 'regression'])
     parser.add_argument('--model-dir')
@@ -39,22 +29,27 @@ def main():
     parser.add_argument('--test-csv')
     parser.add_argument('--prediction-csv')
 
+    parser.add_argument('--verbose', default=2)
     args = parser.parse_args()
+    verbose = int(args.verbose)
 
     if not args.train_csv is None:
         params_autoML = \
-                { 'memory': {'max_size_mb': 11*1024, # * 1024 * 1024,
-                             'max_size_train_samples': 300000
+                { 'memory': {'max_size_mb': 2*1024,
+                             'max_size_train_samples': 100000
                             },
                   'field_target_name': 'target',
         
                   'pipeline' : {
-                        'check\ncolumns\n_exists_start': {'node':'check_columns_exists',
-                              'parents':None,
+                        'rename\nid_columns': {'node':'rename_id_columns',
+                              'parents':None, #'args':{}
+                              },
+                        'check\ncolumns\nexists_start': {'node':'check_columns_exists',
+                              'parents':'rename\nid_columns',
                               'args':{'key_stage':'preprocess_begin', 'drop_columns_test':True}
                               },
                         'drop_columns': {'node':'drop_columns',
-                             'parents':'check\ncolumns\n_exists_start', # 'args':{}
+                             'parents':'check\ncolumns\nexists_start', # 'args':{}
                              },
                         'fillna': {'node':'fillna',
                              'parents':'drop_columns', # 
@@ -78,14 +73,14 @@ def main():
                         'transform\ncategorical': {'node':'transform_categorical',
                              'parents':'transform\ndatetime', # 'args':{}
                              },
-                        'scale': {'node':'scale',
-                             'parents':'transform\ncategorical', # 'args':{}
-                             },
-                        # 'feature_generation': {'node':'feature_generation',
-                        #      'parents':'scale', # 'args':{}
-                        #      },
+                        # 'scale': {'node':'scale',
+                        #       'parents':'transform\ncategorical', # 'args':{}
+                        #       },
+                        # # # 'feature_generation': {'node':'feature_generation',
+                        # # #      'parents':'scale', # 'args':{}
+                        # # #      },
                         'subsample1': {'node':'subsample',
-                             'parents':'scale', # 'args':{}
+                             'parents':'transform\ncategorical', #'scale', # 'args':{}
                              },
                         'columns_float64\nto_float32': {'node':'columns_float64_to_32',
                              'parents':'subsample1', # 'args':{}
@@ -97,12 +92,12 @@ def main():
                         # # 'split_X_y': {'node':'split_X_y',
                         # #       'parents':'check\ncolumns\nexists_end', # 'args':{}
                         # #       },
-                        'bayes': {'node':'model',
-                              'parents':'check\ncolumns\nexists_end',
-                              'args':{'models': ['bayes']}
-                              },
+                        # 'bayes': {'node':'model',
+                        #       'parents':'check\ncolumns\nexists_end',
+                        #       'args':{'models': ['bayes']}
+                        #       },
                         'lightgbm\nend': {'node':'model',
-                              'parents':'bayes', #'bayes',
+                              'parents':'columns_float64\nto_float32', #'bayes',
                               'args':{'models': ['lightgbm']}
                               },
                         # '': {'node':'',
@@ -114,19 +109,16 @@ def main():
                         }
                 }
 
-        # print('args.train_csv', type(args.train_csv.name), args.train_csv.name)
-        # args.train_csv = args.train_csv.name
-
-        automl = AutoML(args.model_dir, params=params_autoML)
+        automl = AutoML(args.model_dir, params=params_autoML, verbose=verbose)
         # automl.pipeline_draw(view=True)
         automl.train(args.train_csv, args.mode)
         automl.save()
     elif args.test_csv is not None:
         
-        automl = AutoML(args.model_dir, params={})
+        automl = AutoML(args.model_dir, params={}, verbose=verbose)
         automl.load()
         _, score = automl.predict(args.test_csv, args.prediction_csv)
-        print('score', score)
+        if verbose: print('score', score)
     else:
         exit(1)
 

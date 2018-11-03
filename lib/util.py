@@ -14,30 +14,33 @@ def timeit(method):
         global is_start
         global nesting_level
 
-        if not is_start:
-            print()
+        # if not is_start:
+        #     print()
 
         is_start = True
-        log("Start {}.".format(method.__name__))
+        verbose = args[0].config.verbose if hasattr(args[0], '__class__') and '.AutoML' in args[0].__str__() else 0
+
+        log("Start {}.".format(method.__name__), verbose)
         nesting_level += 1
 
         start_time = time.time()
         result = method(*args, **kw)
         end_time = time.time()
-
+        
         nesting_level -= 1
-        log("End {}. Time: {:0.2f} sec.".format(method.__name__, end_time - start_time))
+        log("End {}. Time: {:0.2f} sec.".format(method.__name__, end_time - start_time), verbose)
         is_start = False
-
+        
         return result
 
     return timed
 
 
-def log(entry: Any):
+def log(entry: Any, verbose):
     global nesting_level
-    space = "." * (4 * nesting_level)
-    print("{}{}".format(space, entry))
+    if verbose!=0:
+        space = "." * (4 * nesting_level)
+        print("{}{}".format(space, entry))
 
 
 def get_mode_from_file_name(file_name: str):
@@ -45,12 +48,10 @@ def get_mode_from_file_name(file_name: str):
 
 
 class Config:
-    def __init__(self, model_dir: str, params: dict, verbose:bool=False):
+    def __init__(self, model_dir: str, params: dict, verbose:int=0):
 
+        self.verbose = verbose
         self.model_dir = model_dir
-
-        # if 'model_dir' in self.params:
-            # self.model_dir = self.params['model_dir']
         self.tmp_dir = self.model_dir
         os.makedirs(self.model_dir, exist_ok=True)
         
@@ -63,7 +64,7 @@ class Config:
 
         self.data['params'] = deepcopy(params)
         if 'pipeline' in params:
-            self.data['graph'] = self.pipeline_prepare(params['pipeline'], verbose=verbose)
+            self.data['graph'] = self.pipeline_prepare(params['pipeline'])
 
     def is_train(self) -> bool:
         return self["task"] == "train"
@@ -107,11 +108,11 @@ class Config:
     def __repr__(self):
         return repr(self.data)
 
-    def pipeline_prepare(self, params, verbose=False):
+    def pipeline_prepare(self, params):
 
         output=[]
         for k, v in params.items():
-            verbose: print(k)
+            if self.verbose>2: print(k)
             if not 'parents' in v \
                 or v['parents'] is None:
             # add node "Start"
@@ -129,7 +130,7 @@ class Config:
         
         lst_parents = [x[0] for x in output]
         dct_childs_cnt = {i:lst_parents.count(i) for i in lst_parents}
-        if verbose: print(dct_childs_cnt)
+        if self.verbose>1: print(dct_childs_cnt)
         
         # add node "End"
         for p in set(np.unique([x[1] for x in output])) - set(np.unique(lst_parents)):
@@ -146,7 +147,7 @@ class Config:
     
                 order_nb +=1 
                 parent_node = output_[-1][1]
-                if verbose: print('parent_node :', parent_node)
+                if verbose>2: print('parent_node :', parent_node)
                 
                 lst_childs = [x for x in output if x[0]==parent_node]
         
@@ -183,7 +184,7 @@ class Config:
     
         output, output_ = get_childs_sequence(output, output_, parent_node=output_[-1][1])
         
-        if verbose: print(output_)
+        if self.verbose>1: print(output_)
     
         return output_
     
